@@ -197,10 +197,14 @@ async def auto_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await msg.set_reaction(reaction=emoji)
     except Exception:
+        # If the chosen emoji is invalid for some reason, fall back
         try:
             await msg.set_reaction(reaction="❤️")
         except Exception:
-            pass
+            try:
+                await msg.set_reaction(reaction="👍")
+            except Exception:
+                pass
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
