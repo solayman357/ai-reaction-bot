@@ -1,211 +1,207 @@
-import os
-import re
-import asyncio
-import random
-import time
-import logging
-import threading
-from collections import OrderedDict
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import random, re, os, threading
 from flask import Flask
-from threading import Thread
-from telegram import Update, ReactionTypeEmoji
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
-from google import genai
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-log = logging.getLogger("ai-reaction")
+TOKEN = os.environ.get("BOT_TOKEN")
+OWNER_USERNAME = os.environ.get("OWNER_USERNAME", "official_gt")
 
-# --- env vars (set in Render dashboard, NOT in source) ---
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-SELF_PING_URL = os.environ.get("SELF_PING_URL")
-
-if not BOT_TOKEN:
+if not TOKEN:
     raise SystemExit("BOT_TOKEN env var is required")
-if not GEMINI_API_KEY:
-    raise SystemExit("GEMINI_API_KEY env var is required")
 
-# --- Gemini client ---
-ai_client = genai.Client(api_key=GEMINI_API_KEY)
+# ===== Render 24/7 এর জন্য - বটকে জাগিয়ে রাখবে =====
+app_web = Flask(__name__)
 
-# --- dedupe cache: skip duplicate consecutive messages per chat ---
-_recent_cache = OrderedDict()
-MAX_CACHE = 200
-
-def _is_duplicate(chat_id: int, text: str) -> bool:
-    key = f"{chat_id}:{text[:80]}"
-    if key in _recent_cache:
-        return True
-    _recent_cache[key] = time.time()
-    if len(_recent_cache) > MAX_CACHE:
-        _recent_cache.popitem(last=False)
-    return False
-
-# --- Telegram-supported reaction emoji set ---
-VALID_EMOJIS = set("""👍👎❤️🔥😂😮😭😡😍👏🙏🤔🥰😘😎🤩😇🙃🤫🤭🤗😴😜🙄😳😞😟😕🙁😖😣😫😩🥺😢😭😱😨😰😥😓😪😵😐😑😒🙄🤯😬😳""")
-
-def _extract_emoji(text: str) -> str:
-    """Extract the first valid Telegram reaction emoji from Gemini's response."""
-    if not text:
-        return ""
-    text = text.strip().strip('"').strip("'").strip()
-    # Find any valid emoji in the response
-    for ch in text:
-        if ch in VALID_EMOJIS:
-            return ch
-    # Fallback: try to find any emoji-like char
-    match = re.search(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002600-\U000027BF\U0001F900-\U0001F9FF\U0001FA70-\U0001FAFF\U00002702-\U000027B0\U000024C2-\U0001F251]', text)
-    if match:
-        ch = match.group(0)
-        if ch in VALID_EMOJIS:
-            return ch
-    return ""
-
-# --- system prompt ---
-SYSTEM_PROMPT = """You are an intelligent Telegram reaction bot. Analyze the user's message deeply — meaning, emotion, tone, context, sarcasm, intention, and cultural nuance (including Bangla, Banglish, and English).
-
-Return EXACTLY ONE Telegram-supported reaction emoji that best represents a human reaction to this message.
-
-Rules:
-- Return ONLY the raw emoji character, nothing else.
-- No explanation, no text, no punctuation, no quotes.
-- Do NOT return "👍" for every message — pick an emoji that genuinely fits.
-- If unsure, pick a contextually appropriate emoji (😊, ❤️, 🤔, 😮, 🔥, etc.).
-- Supported emoji only (Telegram reaction set).
-"""
-
-# --- Flask keep-alive ---
-flask_app = Flask('')
-
-@flask_app.route('/')
+@app_web.route('/')
 def home():
-    return "🤖 AI Reaction Bot is live!"
+    return "TAMIM REACTION BOT IS ALIVE 🔥"
 
-def run_flask():
+def run_web():
     port = int(os.environ.get("PORT", "8080"))
-    flask_app.run(host='0.0.0.0', port=port)
+    app_web.run(host="0.0.0.0", port=port)
 
-def keep_alive():
-    t = Thread(target=run_flask, daemon=True)
-    t.start()
+threading.Thread(target=run_web, daemon=True).start()
 
+# self-ping so Render free plan never spins down
+import time as _time, urllib.request as _urlreq
 def _self_ping():
-    if not SELF_PING_URL:
+    url = os.environ.get("SELF_PING_URL")
+    if not url:
         return
     while True:
         try:
-            import urllib.request as _urlreq
-            _urlreq.urlopen(SELF_PING_URL, timeout=15)
+            _urlreq.urlopen(url, timeout=15)
         except Exception:
             pass
-        time.sleep(210)
+        _time.sleep(210)
 
 threading.Thread(target=_self_ping, daemon=True).start()
 
-# --- message handler ---
-async def analyze_and_react(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.effective_message
-    if not message:
+# ===== সব ভাষার পারফেক্ট Reaction =====
+def get_perfect_reaction(text):
+    if not text:
+        return "❤️"
+    t = text.lower().strip()
+
+    # 0. মেসেজে Emoji থাকলে ওই Emoji ই দিবে - এটাই সবচেয়ে পারফেক্ট
+    emojis_in_msg = re.findall(r'[\U0001F000-\U0001FAFF\u2600-\u27BF]+', text)
+    if emojis_in_msg:
+        return emojis_in_msg[0]
+
+    # --- 1. ভালোবাসা / Love ---
+    if any(w in t for w in ["love","ভালোবাসি","bhalobashi","jaan","baby","sona","koliza","prem","প্রেম",
+        "pyaar","pyar","mohabbat","ishq","jaanu","meri jaan","dil","❤️",
+        "rak","รัก","thii rak","ที่รัก","faen","แฟน","khid thung","คิดถึง"]):
+        return random.choice(["❤️","😍","🥰","💋","💘","💖","💝","💞","💕","😘","🫶","❤️‍🔥"])
+
+    # --- 2. হাসি / Funny ---
+    if any(w in t for w in ["haha","hehe","হাহা","moja","মজা","funny","lol","joke","hashi","হাসি",
+        "hasi","maja","mast","hasa","😂",
+        "talok","ตลก","kham","ขำ","sanuk","สนุก","lol555","555"]):
+        return random.choice(["😂","🤣","😆","😅","🤭","😜","😝","🤪","😹","🤡"])
+
+    # --- 3. রাগ / Angry ---
+    if any(w in t for w in ["rag","রাগ","angry","fuck","bokachoda","boka","faltu","bal","pagol","harami","kutta",
+        "gussa","गुस्सा","chutiya","bakwas","bhenchod","madarchod","pagal","kutta",
+        "krot","โกรธ","mod","โมโห","hia","เหี้ย","sat","สัตว์","ba","บ้า"]):
+        return random.choice(["😡","🤬","😤","😠","👿","💢","🖕","😒","🙅","🍌","☠️","🐸"])
+
+    # --- 4. কান্না / Sad ---
+    if any(w in t for w in ["kosto","কষ্ট","kanna","কান্না","sad","cry","mon kharap","depress","breakup","cheka","chere gese",
+        "dukh","दुख","rona","रोना","dard","दर्द","akela","udaas","tension",
+        "sia jai","เสียใจ","khao jai","เศร้า","rong hai","ร้องไห้","khit","คิด","ngao","เหงา"]):
+        return random.choice(["😢","😭","💔","😔","😞","🥺","🫂","🖤","🌧️","😿"])
+
+    # --- 5. Wow / জোস / অস্থির ---
+    if any(w in t for w in ["wow","ওয়াও","sera","সেরা","joss","জোস","osthir","অস্থির","amazing","best","op","shei",
+        "mast","बढ़िया","badiya","kamaal","gazab","awesome",
+        "sud yod","สุดยอด","dii mak","ดีมาก","waw","เจ๋ง","thep","เทพ"]):
+        return random.choice(["🔥","😮","🤯","😲","💥","⭐","💯","👏","🤩","👑"])
+
+    # --- 6. Hi / সালাম / নমস্তে / সাওয়াদি ---
+    if any(w in t for w in ["hi","hello","হাই","salam","সালাম","assalam","hey","hlw",
+        "namaste","नमस्ते","hello bhai","kaise ho","kaisa hai","hi bhai",
+        "sawaddee","สวัสดี","watdee","หวัดดี","sabai dee","สบายดี"]):
+        return random.choice(["👋","🙋","🤚","😊","🙏","🤝","🫡"])
+
+    # --- 7. ধন্যবাদ / Thanks / Shukriya / Khop Khun ---
+    if any(w in t for w in ["thank","ধন্যবাদ","tnx","thanks","shukriya","dhonnobad",
+        "shukriya","धन्यवाद","dhanyavad","thanks yaar",
+        "khop khun","ขอบคุณ","khop jai","ขอบใจ"]):
+        return random.choice(["🙏","❤️","🥰","😊","🤗","🫶"])
+
+    # --- 8. Like / Boost / Free - তোমার গ্রুপের জন্য ---
+    if any(w in t for w in ["like","লাইক","boost","free","ফ্রি","done","dn","back","support","check","insta","follow",
+        "like karo","follow karo","back to back",
+        "lai","ไลค์","free like","bp","ติดตาม"]):
+        return random.choice(["👍","❤️","🔥","👏","💯","✅","🎁","🙌","🫠","😬"])
+
+    # --- 9. খাবার / Food ---
+    if any(w in t for w in ["khabar","খাবার","vat","ভাত","biriyani","cha","চা","coffee","fuska","khuda",
+        "khana","खाना","bhook","भूख","biryani","chai","samosa","paneer",
+        "kin khao","กินข้าว","ahan","อาหาร","hio","หิว","khao","ข้าว","tom yum","ต้มยำ"]):
+        return random.choice(["😋","🤤","😵","🐸","🌚","😬","🤧","🚀","🙂"])
+
+    # --- 10. ঘুম / Sleep ---
+    if any(w in t for w in ["ghum","ঘুম","sleep","gn","good night","tired",
+        "neend","नींद","so jao","sone ja",
+        "nguang","ง่วง","non","นอน","fan dee","ฝันดี","raatri sawas","ราตรีสวัสดิ์"]):
+        return random.choice(["😴","🥱","🌙","💤","🛌","😌"])
+
+    # --- 11. সকাল / Morning ---
+    if any(w in t for w in ["good morning","sokal","সকাল","gm","morning","uthlam",
+        "subah","सुबह","good morning bhai",
+        "arun sawas","อรุณสวัสดิ์","sao chao","เช้า"]):
+        return random.choice(["🌅","☀️","🌞","😊","🌻","🙈"])
+
+    # --- 12. গেম / Game ---
+    if any(w in t for w in ["game","গেম","ff","free fire","pubg","cricket","football",
+        "game","게임","khel","खेल","bgmi","cricket",
+        "len gem","เล่นเกม","free fire","rov","เกม"]):
+        return random.choice(["🎮","🕹️","🔥","🎯","🏆","⚽","🏏","🎲"])
+
+    # --- 13. টাকা / Money ---
+    if any(w in t for w in ["taka","টাকা","money","tk","cash",
+        "paisa","पैसा","rupya","salary","amir",
+        "ngoen","เงิน","baht","บาท","ruay","รวย"]):
+        return random.choice(["💰","💵","💸","🤑"])
+
+    # --- 14. গান / Music ---
+    if any(w in t for w in ["gan","গান","song","music","gaana","गाना","sun",
+        "phleng","เพลง","rong phleng","ร้องเพลง","dance","เต้น"]):
+        return random.choice(["🎵","🎶","🎤","🎧","🎸","💃"])
+
+    # --- 15. ধর্ম / Pray ---
+    if any(w in t for w in ["allah","আল্লাহ","dua","দোয়া","namaz","নামাজ","quran","islam",
+        "bhagwan","भगवान","ram","puja","mandir","masjid",
+        "phra","พระ","tham bun","ทำบุญ","wat","วัด","sathu","สาธุ"]):
+        return random.choice(["🙏","🤍","✨","🕊️"])
+
+    # --- 16. বিদায় / Bye ---
+    if any(w in t for w in ["bye","বিদায়","biday","allah hafez","tata",
+        "bye bye","अलविदा","chal bye",
+        "la kon","ลาก่อน","bai","บาย","pai laew","ไปแล้ว"]):
+        return random.choice(["👋","😢","🥺","💔","🌙","✌️"])
+
+    # --- 17. প্রশ্ন / Question ---
+    if "?" in text or any(w in t for w in ["ki","কি","keno","কেন","kivabe","kemon",
+        "kya","क्या","kyu","क्यों","kaise","कैसे","kahan","कहाँ",
+        "tham mai","ทำไม","yang ngai","ยังไง","thii nai","ที่ไหน","arai","อะไร"]):
+        return random.choice(["🤔","🤨","🧐","😕","❓","🤷"])
+
+    # --- 18. জন্মদিন / Party ---
+    if any(w in t for w in ["birthday","জন্মদিন","party","পার্টি","biye","বিয়ে",
+        "janmdin","जन्मदिन","shaadi","शादी","party",
+        "wan koet","วันเกิด","ngan liang","งานเลี้ยง","paartii","ปาร์ตี้"]):
+        return random.choice(["🎉","🎊","🥳","🎂","🎁","🎈","🥂"])
+
+    # --- 19. ভয় / Scared ---
+    if any(w in t for w in ["voy","ভয়","scared","bhoy","darr","bhoot",
+        "dar","डर","bhoot","भूत",
+        "klua","กลัว","phii","ผี"]):
+        return random.choice(["😱","😨","😰","👻","💀","🙀"])
+
+    # --- 20. বন্ধু / Friend ---
+    if any(w in t for w in ["bondhu","বন্ধু","friend","dost","vai","ভাই",
+        "dost","दोस्त","yaar","यार","bhai","भाई",
+        "phuean","เพื่อน","phii","พี่","nong","น้อง"]):
+        return random.choice(["🤝","👯","❤️","🫶","👊","🤜🤛"])
+
+    return random.choice(["❤️","🔥","👍","😍","👏","🥰","😮","🤩","💯","🫶","✨","🌸"])
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user.username or user.username.lower() != OWNER_USERNAME.lower():
+        await update.message.reply_text("আমি শুধু OWNER এর কথা শুনি অন্য কারো না 🙄 আমাকে সেট করতে হলে @official_gt কে নিয়ে এসো")
         return
+    await update.message.reply_text("Yes Boss ✅ Reaction Bot Ready 🔥 BOT OWNER : @official_gt")
 
-    # Skip other bots
-    if message.from_user and message.from_user.is_bot:
+async def auto_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg:
         return
-
-    text = message.text or message.caption or ""
-    if not text.strip():
+    if msg.from_user and msg.from_user.is_bot:
         return
-
-    chat_id = message.chat.id
-    msg_id = message.message_id
-
-    # Deduplicate consecutive identical messages
-    if _is_duplicate(chat_id, text):
-        return
-
-    # --- Gemini analysis ---
-    chosen_emoji = ""
+    text = msg.text or msg.caption or ""
+    if msg.sticker:
+        emoji = msg.sticker.emoji or "😍"
+    elif msg.photo or msg.video:
+        emoji = get_perfect_reaction(text) if text else "🔥"
+    elif msg.voice or msg.audio or msg.video_note:
+        emoji = "🎵"
+    else:
+        emoji = get_perfect_reaction(text)
     try:
-        prompt = f"""{SYSTEM_PROMPT}
+        await msg.set_reaction(reaction=emoji)
+    except Exception:
+        try:
+            await msg.set_reaction(reaction="❤️")
+        except Exception:
+            pass
 
-Message: "{text}"
-"""
-        response = None
-        last_err = None
-        # Use a known-available Gemini model
-        candidates = [
-            'models/gemini-2.5-flash', 'models/gemini-2.5-pro', 'models/gemini-3.5-flash',
-            'models/gemini-3.8-flash', 'models/gemini-3.7-flash', 'models/gemini-3.6-flash',
-            'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.5-flash',
-            'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash',
-        ]
-        # Deduplicate while preserving order
-        seen = set()
-        candidates = [c for c in candidates if not (c in seen or seen.add(c))]
-
-        for model_name in candidates:
-            try:
-                response = ai_client.models.generate_content(
-                    model=model_name,
-                    contents=prompt,
-                )
-                break
-            except Exception as e:
-                last_err = e
-                log.warning(f"Model {model_name} failed: {e}")
-                continue
-        if response is None:
-            raise last_err or Exception("All Gemini models failed")
-        raw = response.text or ""
-        chosen_emoji = _extract_emoji(raw)
-        log.info(f"Gemini raw='{raw[:60]}' -> emoji='{chosen_emoji}' for text='{text[:40]}'")
-    except Exception as e:
-        log.error(f"Gemini API error: {e}")
-        chosen_emoji = ""
-
-    # If Gemini failed or returned invalid, pick a contextual fallback (not always 👍)
-    if not chosen_emoji:
-        t = text.lower()
-        if any(w in t for w in ["হাসি", "haha", "lol", "😂", "funny", "জোক"]):
-            chosen_emoji = "😂"
-        elif any(w in t for w in ["ভালোবাসি", "love", "❤️", "baby", "sona"]):
-            chosen_emoji = "❤️"
-        elif any(w in t for w in ["দুঃখ", "sad", "😢", "কান্না"]):
-            chosen_emoji = "😢"
-        elif any(w in t for w in ["রাগ", "angry", "😡", "হাঁই"]):
-            chosen_emoji = "😡"
-        elif any(w in t for w in ["ওও", "wow", "😮", "চমৎকার"]):
-            chosen_emoji = "😮"
-        elif any(w in t for w in ["ধন্যবাদ", "thanks", "thank", "🙏"]):
-            chosen_emoji = "🙏"
-        elif "?" in text:
-            chosen_emoji = "🤔"
-        else:
-            chosen_emoji = "😐"  # neutral but not 👍
-        log.warning(f"Gemini fallback used emoji='{chosen_emoji}'")
-
-    # --- Set reaction ---
-    try:
-        await message.set_reaction(reaction=ReactionTypeEmoji(emoji=chosen_emoji))
-        log.info(f"✅ Reacted '{chosen_emoji}' to: {text[:50]}")
-    except Exception as e:
-        log.error(f"Telegram setReaction failed: {e}")
-
-async def post_init(application: Application):
-    await application.bot.delete_webhook(drop_pending_updates=True)
-    log.info("🗑️ Webhook deleted — polling active")
-
-def main():
-    keep_alive()
-    application = (
-        Application.builder()
-        .token(BOT_TOKEN)
-        .post_init(post_init)
-        .build()
-    )
-    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, analyze_and_react))
-    log.info("🤖 AI Reaction Bot polling started — waiting for group messages...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler('start', start))
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, auto_reaction))
+    print("TAMIM REACTION BOT Running 24/7...")
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
