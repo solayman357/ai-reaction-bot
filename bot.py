@@ -130,10 +130,21 @@ async def analyze_and_react(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Message: "{text}"
 """
-        response = ai_client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt,
-        )
+        response = None
+        last_err = None
+        for model_name in ['gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-pro', 'gemini-2.0-flash']:
+            try:
+                response = ai_client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                )
+                break
+            except Exception as e:
+                last_err = e
+                log.warning(f"Model {model_name} failed: {e}")
+                continue
+        if response is None:
+            raise last_err or Exception("All Gemini models failed")
         raw = response.text or ""
         chosen_emoji = _extract_emoji(raw)
         log.info(f"Gemini raw='{raw[:60]}' -> emoji='{chosen_emoji}' for text='{text[:40]}'")
