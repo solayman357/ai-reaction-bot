@@ -42,20 +42,7 @@ def _is_duplicate(chat_id: int, text: str) -> bool:
     return False
 
 # --- Telegram-supported reaction emoji set ---
-VALID_EMOJIS = set("""👍👎❤️🔥😂😮😭😡😍👏🙏🤔🥰😘😎🤩😇🙃🤫🤭🤗🤔😴🤤😜😝😋😛😑😒🙄😳😞😟😕🙁😖😣😖😫😩🥺😢😭😱😨😰😥😓😪😵😐😑😒🙄🤯😬😳😞😟😕🙁😖😣😫😩🥺😢😭😱😨😰😥😓😪😵😐👏🙌👐🤲🤝👏👋🤚🖐✋🖖👌🤏✌️🤞🤟🤘🤙👈👉👆👇🔫💣🔪🗡🏹⚔️🛡🚬💊💉🤒🤕🤢🤮🤧😷🤠👹👺🤡💩👻👽🤖🎃😺😸😹😻😼😽🙀😿😾🐶🐱🐭🐹🐰🦊🐻🐼🐨🐯🦁🐮🐷🐸🐵🐔🐧🐦🐤🐣🐥🦆🦅🦉🦇🐺🐗🐴🦄🐝🐛🦋🐌🐞🐜🦟🦗🕷🦂🐢🐍🦎🦖🦕🐙🦑🦐🦞🐟🐠🐡🦈🐳🐋🐬🦭🐊🐅🐆🦓🦍🦧🐘🦛🦏🐪🐫🦒🦘🐘🐃🐂🐄🐎🐖🐏🐑🐐🦌🐕🐩🐈🐓🦃🐦🦆🦅🦉🦇🦆🦅🐸🐊🐢🐍🦎🐙🦑🦐🦞🦀🐡🐠🐟🐡🦈🐳🐋🐬🦭🐊🐅🦁🐯🐆🦓🦍🐘🦛🦏🦍🐪🐫🦒🦘🦘🐃🐂🐄🐎🐖🐏🐑🐐🦌🐕🐩🐈🐓🦃🦅🦆🦇🦉🦇🐒🐕🐈🐓🦆🦅🦉🦇🦆🐒🐒🐔🐧🐤🐣🐥🦆🦅🦉🦇🐤🦇🦉🦅🦆🐢🐍🦎🐸🦖🦕🦐🦑🐙🐡🦈🐟🐠🐬🐋🐳🦭🐊🐅🐆🦓🦍🦧🐘🦛🦏🦍🦏🐪🐫🦒🦘🦘🦘🐃🐂🐄🐎🐖🐏🐑🐐🦌🐕🐩🐈🐓🦃🐦🦆🦅🦉🦇🦆🦅🦉🦇🦆🦅🐸🐊🐢🐍🦎🐙🦑🦐🦞🦀🐡🐠🐟🐡🦈🐳🐋🐬🦭🐊🐅🦁🐯🐆🦓🦍🐘🦛🦏🦍🐪🐫🦒🦘🦘🐃🐂🐄🐎🐖🐏🐑🐐🦌🐕🐩🐈🐓🦃🐦🦆🦅🦉🦇🦆🦅🦉🦇🦆🦅🐸🐊🐢🐍🦎🦖🦕🐙🦑🦐🦞🦀🐡🐠🐟🐡🦈🐳🐋🐬🦭🐊🐅🦁🐯🐆🦓🦍🐘🦛🦏🦍🐪🐫🦒🦘🦘🐃🐂🐄🐎🐖🐏🐑🐐🦌🐕🐩🐈🐓🦃🐦🦆🦅🦉🦇🦆🦅🦉🦇🦆🦅🐸🐊🐢🐍🦎🦖🦕🦖🦕""")
-
-# --- system prompt ---
-SYSTEM_PROMPT = """You are an intelligent Telegram reaction bot. Analyze the user's message deeply — meaning, emotion, tone, context, sarcasm, sarcasm, intention, and cultural nuance (including Bangla, Banglish, and English).
-
-Return EXACTLY ONE Telegram-supported reaction emoji that best represents a human reaction to this message.
-
-Rules:
-- Return ONLY the raw emoji character, nothing else.
-- No explanation, no text, no punctuation, no quotes.
-- Do NOT return "👍" for every message — pick an emoji that genuinely fits.
-- If unsure, pick a contextually appropriate emoji (😊, ❤️, 🤔, 😮, 🔥, etc.).
-- Supported emoji only (Telegram reaction set).
-"""
+VALID_EMOJIS = set("""👍👎❤️🔥😂😮😭😡😍👏🙏🤔🥰😘😎🤩😇🙃🤫🤭🤗😴😜🙄😳😞😟😕🙁😖😣😫😩🥺😢😭😱😨😰😥😓😪😵😐😑😒🙄🤯😬😳""")
 
 def _extract_emoji(text: str) -> str:
     """Extract the first valid Telegram reaction emoji from Gemini's response."""
@@ -131,7 +118,7 @@ async def analyze_and_react(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Message: "{text}"
 """
         response = ai_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-1.5-flash',
             contents=prompt,
         )
         raw = response.text or ""
