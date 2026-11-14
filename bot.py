@@ -1,7 +1,32 @@
 import os
 import random
 import asyncio
+import threading
+import time as _time
+import urllib.request as _urlreq
 from flask import Flask
+
+# ensure an event loop exists in main thread (Pyrogram requirement on py3.14)
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    _loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(_loop)
+
+# keep-alive self-ping so Render free plan never spins down
+def _self_ping():
+    url=os.environ.get("SELF_PING_URL")
+    if not url:
+        return
+    while True:
+        try:
+            _urlreq.urlopen(url, timeout=15)
+        except Exception:
+            pass
+        _time.sleep(210)
+threading.Thread(target=_self_ping, daemon=True).start()
+
+
 from threading import Thread
 from pyrogram import Client, filters
 from pyrogram.types import Message
@@ -66,4 +91,5 @@ async def analyze_and_react(client: Client, message: Message):
 
 if __name__ == "__main__":
     keep_alive()
+    threading.Thread(target=_self_ping, daemon=True).start()
     app.run()
