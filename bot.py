@@ -53,8 +53,13 @@ def get_perfect_reaction(text):
     def any_word(words):
         return any(w in t for w in words)
 
-    # 1. Love / Romance
-    if any_word(["love","ভালোবাসি","bhalobashi","jaan","baby","sona","koliza","prem","প্রেম",
+    # 1. Kiss / Baby / Like-niba — kiss emoji first
+    if any_word(["baby","বেবি","like niba","লাইক নিবা","like niba","hum baby","আমি বেবি",
+        "kiss","চুম্বন","chumban","mwah","xoxo","💋","😘","give kiss","take kiss","send kiss"]):
+        return random.choice(["💋","😘","💘","💖","💝","❤️","🥰","😍"])
+
+    # 1b. Love / Romance (general)
+    if any_word(["love","ভালোবাসি","bhalobashi","jaan","sona","koliza","prem","প্রেম",
         "pyaar","pyar","mohabbat","ishq","jaanu","meri jaan","dil","❤️",
         "rak","รัก","thii rak","ที่รัก","faen","แฟน","khid thung","คิดถึง"]):
         return random.choice(["❤️","😍","🥰","💋","💘","💖","💝","💞","💕","😘","🫶","❤️‍🔥"])
