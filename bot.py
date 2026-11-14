@@ -132,22 +132,10 @@ Message: "{text}"
 """
         response = None
         last_err = None
-        # Discover available models dynamically
-        available_models = []
-        try:
-            models = ai_client.models.list()
-            for m in models:
-                methods = getattr(m, 'supported_generation_methods', []) or []
-                if 'generateContent' in methods:
-                    available_models.append(m.name)
-            log.info(f"Available Gemini models: {available_models}")
-        except Exception as e:
-            log.warning(f"Could not list models: {e}")
-
-        # Try discovered models first, then fallbacks
-        candidates = available_models + [
-            'gemini-1.5-flash-latest', 'gemini-1.5-flash', 'gemini-1.5-pro',
-            'gemini-pro', 'gemini-1.0-pro', 'gemini-2.0-flash', 'gemini-2.0-flash-lite',
+        # Use a known-available Gemini model
+        candidates = [
+            'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.5-flash',
+            'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash',
         ]
         # Deduplicate while preserving order
         seen = set()
