@@ -41,7 +41,7 @@ threading.Thread(target=_self_ping, daemon=True).start()
 def get_perfect_reaction(text):
     """Choose a fitting emoji based on message content."""
     if not text:
-        return "❤️"
+        return random.choice(["❤️","🔥","😍","👏","🥰","😮","🤩","💯","🫶","✨","🌸","🎉","😂","😊","🙏","💪","🎯","🌟","🍀","🎁"])
     t = text.lower().strip()
 
     # 0. If message contains an emoji, return the first one
@@ -173,7 +173,7 @@ def get_perfect_reaction(text):
         return random.choice(["🤝","👯","❤️","🫶","👊","🤜🤛"])
 
     # Default diverse fallback (never just 👍)
-    return random.choice(["❤️","🔥","😍","👏","🥰","😮","🤩","💯","🫶","✨","🌸","🎉","😂","😊","🙏","💪","🎯","🌟"])
+    return random.choice(["❤️","🔥","😍","👏","🥰","😮","🤩","💯","🫶","✨","🌸","🎉","😂","😊","🙏","💪","🎯","🌟","🍀","🎁","🎊","🥳","🎂","🎈","🥂","😱","😨","😰","👻","💀","🙀","🤝","👯","🫶","👊","🤜🤛","😴","🥱","🌙","💤","🛌","😌","🌅","☀️","🌞","🌻","🙈","🎮","🕹️","🎯","🏆","⚽","🏏","🎲","💰","💵","💸","🤑","🎵","🎶","🎤","🎧","🎸","💃","🙏","🤍","✨","🕊️","👋","😢","🥺","💔","🌙","✌️","🤔","🤨","🧐","😕","❓","🤷","😱","😨","😰","👻","💀","🙀"])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
