@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import random, re, os, threading
+import random, re, os, threading, asyncio
 from flask import Flask
 
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -183,6 +183,9 @@ async def auto_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if msg.from_user and msg.from_user.is_bot:
         return
     text = msg.text or msg.caption or ""
+
+    # Fast human-like delay (300-800ms) - quick but natural
+    await asyncio.sleep(random.uniform(0.3, 0.8))
     if msg.sticker:
         emoji = msg.sticker.emoji or "😍"
     elif msg.photo or msg.video:
