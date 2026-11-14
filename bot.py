@@ -61,6 +61,19 @@ def _extract_emoji(text: str) -> str:
             return ch
     return ""
 
+# --- system prompt ---
+SYSTEM_PROMPT = """You are an intelligent Telegram reaction bot. Analyze the user's message deeply — meaning, emotion, tone, context, sarcasm, intention, and cultural nuance (including Bangla, Banglish, and English).
+
+Return EXACTLY ONE Telegram-supported reaction emoji that best represents a human reaction to this message.
+
+Rules:
+- Return ONLY the raw emoji character, nothing else.
+- No explanation, no text, no punctuation, no quotes.
+- Do NOT return "👍" for every message — pick an emoji that genuinely fits.
+- If unsure, pick a contextually appropriate emoji (😊, ❤️, 🤔, 😮, 🔥, etc.).
+- Supported emoji only (Telegram reaction set).
+"""
+
 # --- Flask keep-alive ---
 flask_app = Flask('')
 
@@ -146,7 +159,7 @@ Message: "{text}"
         elif "?" in text:
             chosen_emoji = "🤔"
         else:
-            chosen_emoji = "😊"  # neutral but not 👍
+            chosen_emoji = "😐"  # neutral but not 👍
         log.warning(f"Gemini fallback used emoji='{chosen_emoji}'")
 
     # --- Set reaction ---
