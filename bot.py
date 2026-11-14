@@ -100,11 +100,11 @@ def get_perfect_reaction(text):
         "khop khun","ขอบคุณ","khop jai","ขอบใจ"]):
         return random.choice(["🙏","❤️","🥰","😊","🤗","🫶"])
 
-    # 8. Like / Boost
+    # 8. Like / Boost — enthusiastic reactions, NOT just thumbs up
     if any_word(["like","লাইক","boost","free","ফ্রি","done","dn","back","support","check","insta","follow",
         "like karo","follow karo","back to back",
         "lai","ไลค์","free like","bp","ติดตาม"]):
-        return random.choice(["👍","❤️","🔥","👏","💯","✅","🎁","🙌","🫠","😬"])
+        return random.choice(["🔥","❤️","👏","💯","✅","🎁","🙌","🫠","😬","💥","⭐","💪","🎯","🌟"])
 
     # 9. Food
     if any_word(["khabar","খাবার","vat","ভাত","biriyani","cha","চা","coffee","fuska","khuda",
