@@ -8,7 +8,7 @@ import threading
 from collections import OrderedDict
 from flask import Flask
 from threading import Thread
-from telegram import Update
+from telegram import Update, ReactionTypeEmoji
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 from google import genai
 
@@ -131,7 +131,7 @@ async def analyze_and_react(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Message: "{text}"
 """
         response = ai_client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
         )
         raw = response.text or ""
@@ -164,7 +164,7 @@ Message: "{text}"
 
     # --- Set reaction ---
     try:
-        await message.set_reaction(reaction=chosen_emoji)
+        await message.set_reaction(reaction=ReactionTypeEmoji(emoji=chosen_emoji))
         log.info(f"✅ Reacted '{chosen_emoji}' to: {text[:50]}")
     except Exception as e:
         log.error(f"Telegram setReaction failed: {e}")
