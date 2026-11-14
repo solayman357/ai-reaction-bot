@@ -134,6 +134,8 @@ Message: "{text}"
         last_err = None
         # Use a known-available Gemini model
         candidates = [
+            'models/gemini-2.5-flash', 'models/gemini-2.5-pro', 'models/gemini-3.5-flash',
+            'models/gemini-3.8-flash', 'models/gemini-3.7-flash', 'models/gemini-3.6-flash',
             'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.5-flash',
             'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash',
         ]
