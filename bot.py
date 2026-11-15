@@ -1,16 +1,19 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import random, re, os, threading, time, urllib.request
+import os
+import re
+import random
+import threading
 from flask import Flask
+from telegram import Update, ReactionTypeEmoji
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
+# ===== কনফিগারেশন =====
 TOKEN = os.environ.get("BOT_TOKEN", "9241228046:AAGzNtLPGmNMmavg7I4YL2oW5JAh8MV7330")
 OWNER_USERNAME = os.environ.get("OWNER_USERNAME", "official_gt")
-SELF_PING_URL = os.environ.get("SELF_PING_URL", "https://ai-reaction-bot.onrender.com/")
 
 if not TOKEN:
     raise SystemExit("BOT_TOKEN env var is required")
 
-# ===== Render 24/7 এর জন্য - বটকে জাগিয়ে রাখবে =====
+# ===== Render 24/7 ওয়েব সার্ভার =====
 app_web = Flask(__name__)
 
 @app_web.route('/')
@@ -19,182 +22,158 @@ def home():
 
 def run_web():
     port = int(os.environ.get("PORT", "10000"))
-    app_web.run(host="0.0.0.0", port=port)
+    app_web.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
+# ব্যাকগ্রাউন্ড থ্রেডে ওয়েব সার্ভার চালু করা
 threading.Thread(target=run_web, daemon=True).start()
 
 # self-ping so Render free plan never spins down
+import time as _time, urllib.request as _urlreq
 def _self_ping():
+    url = os.environ.get("SELF_PING_URL", "https://ai-reaction-bot.onrender.com/")
     while True:
         try:
-            urllib.request.urlopen(SELF_PING_URL, timeout=15)
+            _urlreq.urlopen(url, timeout=15)
         except Exception:
             pass
-        time.sleep(210)
+        _time.sleep(210)
 
 threading.Thread(target=_self_ping, daemon=True).start()
 
-# ===== সব ভাষার পারফেক্ট Reaction =====
+# ===== পারফেক্ট Reaction লজিক =====
 def get_perfect_reaction(text):
     if not text:
         return "❤️"
     t = text.lower().strip()
 
-    # 0. মেসেজে Emoji থাকলে ওই Emoji ই দিবে - এটাই সবচেয়ে পারফেক্ট
+    # ০. মেসেজে নির্দিষ্ট ইমোজি থাকলে সেটাই ব্যাক করবে
     emojis_in_msg = re.findall(r'[\U0001F000-\U0001FAFF\u2600-\u27BF]+', text)
     if emojis_in_msg:
         return emojis_in_msg[0]
 
-    # --- 1. ভালোবাসা / Love ---
-    if any(w in t for w in ["love","ভালোবাসি","bhalobashi","jaan","baby","sona","koliza","prem","প্রেম",
-        "pyaar","pyar","mohabbat","ishq","jaanu","meri jaan","dil","❤️",
-        "rak","รัก","thii rak","ที่รัก","faen","แฟน","khid thung","คิดถึง"]):
-        return random.choice(["❤️","😍","🥰","💋","💘","💖","💝","💞","💕","😘","🫶","❤️‍🔥"])
+    # ১. ভালোবাসা / Love
+    if any(w in t for w in ["love","ভালোবাসি","bhalobashi","jaan","baby","sona","koliza","prem","প্রেম","pyaar","pyar","mohabbat","ishq","jaanu","meri jaan","dil","❤️","rak","รัก","thii rak","ที่รัก","faen","แฟน","khid thung","คิดถึง"]):
+        return random.choice(["❤️","😍","🥰","😘","🫶","❤️‍🔥"])
 
-    # --- 2. হাসি / Funny ---
-    if any(w in t for w in ["haha","hehe","হাহা","moja","মজা","funny","lol","joke","hashi","হাসি",
-        "hasi","maja","mast","hasa","😂",
-        "talok","ตลก","kham","ขำ","sanuk","สนุก","lol555","555"]):
-        return random.choice(["😂","🤣","😆","😅","🤭","😜","😝","🤪","😹","🤡"])
+    # ২. হাসি / Funny
+    if any(w in t for w in ["haha","hehe","হাহা","moja","মзақ","funny","lol","joke","hashi","হাসি","hasi","maja","mast","hasa","😂","talok","ตลก","kham","ขำ","sanuk","สนุก","lol555","555"]):
+        return random.choice(["😂","🤣","😆","😅","🤭","😜"])
 
-    # --- 3. রাগ / Angry ---
-    if any(w in t for w in ["rag","রাগ","angry","fuck","bokachoda","boka","faltu","bal","pagol","harami","kutta",
-        "gussa","गुस्सा","chutiya","bakwas","bhenchod","madarchod","pagal","kutta",
-        "krot","โกรธ","mod","โมโห","hia","เหี้ย","sat","สัตว์","ba","บ้า"]):
-        return random.choice(["😡","🤬","😤","😠","👿","💢","🖕","😒","🙅","🍌","☠️","🐸"])
+    # ৩. রাগ / Angry
+    if any(w in t for w in ["rag","রাগ","angry","fuck","bokachoda","boka","faltu","bal","pagol","harami","kutta","gussa","गुस्सा","chutiya","bakwas","bhenchod","madarchod","pagal","krot","โกรธ","mod","โมโห","hia","เหี้ย"]):
+        return random.choice(["😡","🤬","😤","😠","😒","🖕"])
 
-    # --- 4. কান্না / Sad ---
-    if any(w in t for w in ["kosto","কষ্ট","kanna","কান্না","sad","cry","mon kharap","depress","breakup","cheka","chere gese",
-        "dukh","दुख","rona","रोना","dard","दर्द","akela","udaas","tension",
-        "sia jai","เสียใจ","khao jai","เศร้า","rong hai","ร้องไห้","khit","คิด","ngao","เหงา"]):
-        return random.choice(["😢","😭","💔","😔","😞","🥺","🫂","🖤","🌧️","😿"])
+    # ৪. কান্না / Sad
+    if any(w in t for w in ["kosto","কষ্ট","kanna","কান্না","sad","cry","mon kharap","depress","breakup","cheka","chere gese","dukh","दुख","rona","रोना","dard","दर्द","akela","udaas","tension","sia jai","เสียใจ","khao jai","เศร้า"]):
+        return random.choice(["😢","😭","💔","😔","🥺","🫂"])
 
-    # --- 5. Wow / জোস / অস্থির ---
-    if any(w in t for w in ["wow","ওয়াও","sera","সেরা","joss","জোস","osthir","অস্থির","amazing","best","op","shei",
-        "mast","बढ़िया","badiya","kamaal","gazab","awesome",
-        "sud yod","สุดยอด","dii mak","ดีมาก","waw","เจ๋ง","thep","เทพ"]):
-        return random.choice(["🔥","😮","🤯","😲","💥","⭐","💯","👏","🤩","👑"])
+    # ৫. Wow / জোস
+    if any(w in t for w in ["wow","ওয়াও","sera","সেরা","joss","জোস","osthir","অস্থির","amazing","best","op","shei","mast","बढ़िया","badiya","kamaal","gazab","awesome"]):
+        return random.choice(["🔥","😮","🤯","💯","👏","🤩"])
 
-    # --- 6. Hi / সালাম / নমস্তে / সাওয়াদি ---
-    if any(w in t for w in ["hi","hello","হাই","salam","সালাম","assalam","hey","hlw",
-        "namaste","नमस्ते","hello bhai","kaise ho","kaisa hai","hi bhai",
-        "sawaddee","สวัสดี","watdee","หวัดดี","sabai dee","สบายดี"]):
-        return random.choice(["👋","🙋","🤚","😊","🙏","🤝","🫡"])
+    # ৬. Hi / হ্যালো / সালাম
+    if any(w in t for w in ["hi","hello","হাই","salam","সালাম","assalam","hey","hlw","namaste","नमस्ते","sawaddee","สวัสดี"]):
+        return random.choice(["👋","😊","🙏","🤝","🫡"])
 
-    # --- 7. ধন্যবাদ / Thanks / Shukriya / Khop Khun ---
-    if any(w in t for w in ["thank","ধন্যবাদ","tnx","thanks","shukriya","dhonnobad",
-        "shukriya","धन्यवाद","dhanyavad","thanks yaar",
-        "khop khun","ขอบคุณ","khop jai","ขอบใจ"]):
-        return random.choice(["🙏","❤️","🥰","😊","🤗","🫶"])
+    # ৭. ধন্যবাদ / Thanks
+    if any(w in t for w in ["thank","ধন্যবাদ","tnx","thanks","shukriya","dhonnobad","shukriya","धन्यवाद","dhanyavad","khop khun","ขอบคุณ"]):
+        return random.choice(["🙏","❤️","🥰","😊","🤗"])
 
-    # --- 8. Like / Boost / Free - তোমার গ্রুপের জন্য ---
-    if any(w in t for w in ["like","লাইক","boost","free","ফ্রি","done","dn","back","support","check","insta","follow",
-        "like karo","follow karo","back to back",
-        "lai","ไลค์","free like","bp","ติดตาม"]):
-        return random.choice(["👍","❤️","🔥","👏","💯","✅","🎁","🙌","🫠","😬"])
+    # ৮. লাইক / সাপোর্ট / Done
+    if any(w in t for w in ["like","লাইক","boost","free","ফ্রি","done","dn","back","support","check","follow"]):
+        return random.choice(["❤️","🔥","👏","💯","✅","🙌"])
 
-    # --- 9. খাবার / Food ---
-    if any(w in t for w in ["khabar","খাবার","vat","ভাত","biriyani","cha","চা","coffee","fuska","khuda",
-        "khana","खाना","bhook","भूख","biryani","chai","samosa","paneer",
-        "kin khao","กินข้าว","ahan","อาหาร","hio","หิว","khao","ข้าว","tom yum","ต้มยำ"]):
-        return random.choice(["😋","🤤","😵","🐸","🌚","😬","🤧","🚀","🙂"])
+    # ৯. খাবার / Food
+    if any(w in t for w in ["khabar","খাবার","vat","ভাত","biriyani","cha","চা","coffee","fuska","khuda","khana","खाना","bhook","भूख","kin khao","กินข้าว"]):
+        return random.choice(["😋","🤤","🙂","☕","🍕"])
 
-    # --- 10. ঘুম / Sleep ---
-    if any(w in t for w in ["ghum","ঘুম","sleep","gn","good night","tired",
-        "neend","नींद","so jao","sone ja",
-        "nguang","ง่วง","non","นอน","fan dee","ฝันดี","raatri sawas","ราตรีสวัสดิ์"]):
-        return random.choice(["😴","🥱","🌙","💤","🛌","😌"])
+    # ১০. ঘুম / Sleep
+    if any(w in t for w in ["ghum","ঘুম","sleep","gn","good night","tired","neend","नींद","so jao","non","นอน","fan dee"]):
+        return random.choice(["😴","🥱","🌙","💤","🛌"])
 
-    # --- 11. সকাল / Morning ---
-    if any(w in t for w in ["good morning","sokal","সকাল","gm","morning","uthlam",
-        "subah","सुबह","good morning bhai",
-        "arun sawas","อรุณสวัสดิ์","sao chao","เช้า"]):
-        return random.choice(["🌅","☀️","🌞","😊","🌻","🙈"])
+    # ১১. সকাল / Morning
+    if any(w in t for w in ["good morning","sokal","সকাল","gm","morning","uthlam","subah","सुबह"]):
+        return random.choice(["🌅","☀️","🌞","😊","🌻"])
 
-    # --- 12. গেম / Game ---
-    if any(w in t for w in ["game","গেম","ff","free fire","pubg","cricket","football",
-        "game","게임","khel","खेल","bgmi","cricket",
-        "len gem","เล่นเกม","free fire","rov","เกม"]):
-        return random.choice(["🎮","🕹️","🔥","🎯","🏆","⚽","🏏","🎲"])
+    # ১২. গেম / Game
+    if any(w in t for w in ["game","গেম","ff","free fire","pubg","cricket","football","khel","खेल","bgmi","เล่นเกม"]):
+        return random.choice(["🎮","🕹️","🔥","🎯","🏆","⚽"])
 
-    # --- 13. টাকা / Money ---
-    if any(w in t for w in ["taka","টাকা","money","tk","cash",
-        "paisa","पैसा","rupya","salary","amir",
-        "ngoen","เงิน","baht","บาท","ruay","รวย"]):
+    # ১৩. টাকা / Money
+    if any(w in t for w in ["taka","টাকা","money","tk","cash","paisa","पैसा","rupya","salary","amir","เงิน","baht","บาท"]):
         return random.choice(["💰","💵","💸","🤑"])
 
-    # --- 14. গান / Music ---
-    if any(w in t for w in ["gan","গান","song","music","gaana","गाना","sun",
-        "phleng","เพลง","rong phleng","ร้องเพลง","dance","เต้น"]):
-        return random.choice(["🎵","🎶","🎤","🎧","🎸","💃"])
+    # ১৪. গান / Music
+    if any(w in t for w in ["gan","গান","song","music","gaana","गाना","sun","phleng","เพลง","dance"]):
+        return random.choice(["🎵","🎶","🎤","🎧","🎸"])
 
-    # --- 15. ধর্ম / Pray ---
-    if any(w in t for w in ["allah","আল্লাহ","dua","দোয়া","namaz","নামাজ","quran","islam",
-        "bhagwan","भगवान","ram","puja","mandir","masjid",
-        "phra","พระ","tham bun","ทำบุญ","wat","วัด","sathu","สาธุ"]):
+    # ১৫. ধর্ম / Pray
+    if any(w in t for w in ["allah","আল্লাহ","dua","দোয়া","namaz","নামাজ","quran","islam","bhagwan","भगवान","ram","puja","masjid","สาธุ"]):
         return random.choice(["🙏","🤍","✨","🕊️"])
 
-    # --- 16. বিদায় / Bye ---
-    if any(w in t for w in ["bye","বিদায়","biday","allah hafez","tata",
-        "bye bye","अलविदা","chal bye",
-        "la kon","ลาก่อน","bai","บาย","pai laew","ไปแล้ว"]):
-        return random.choice(["👋","😢","🥺","💔","🌙","✌️"])
+    # ১৬. বিদায় / Bye
+    if any(w in t for w in ["bye","বিদায়","biday","allah hafez","tata","bye bye","अलविदा","chal bye","ลาก่อน"]):
+        return random.choice(["👋","😢","🥺","🌙","✌️"])
 
-    # --- 17. প্রশ্ন / Question ---
-    if "?" in text or any(w in t for w in ["ki","কি","keno","কেন","kivabe","kemon",
-        "kya","क्या","kyu","क्यों","kaise","कैसे","kahan","कहाँ",
-        "tham mai","ทำไม","yang ngai","ยังไง","thii nai","ที่ไหน","arai","อะไร"]):
-        return random.choice(["🤔","🤨","🧐","😕","❓","🤷"])
+    # ১৭. প্রশ্ন / Question
+    if "?" in text or any(w in t for w in ["ki","কি","keno","কেন","kivabe","kemon","kya","क्या","kyu","क्यों","kaise","कैसे","ทำไม","อะไร"]):
+        return random.choice(["🤔","🤨","🧐","😕","🤷"])
 
-    # --- 18. জন্মদিন / Party ---
-    if any(w in t for w in ["birthday","জন্মদিন","party","পার্টি","biye","বিয়ে",
-        "janmdin","जन्मदिन","shaadi","शादी","party",
-        "wan koet","วันเกิด","ngan liang","งานเลี้ยง","paartii","ปาร์ตี้"]):
-        return random.choice(["🎉","🎊","🥳","🎂","🎁","🎈","🥂"])
+    # ১৮. জন্মদিন / Party
+    if any(w in t for w in ["birthday","জন্মদিন","party","পার্টি","biye","বিয়ে","janmdin","shaadi","วันเกิด","ปาร์ตี้"]):
+        return random.choice(["🎉","🎊","🥳","🎂","🎁","🎈"])
 
-    # --- 19. ভয় / Scared ---
-    if any(w in t for w in ["voy","ভয়","scared","bhoy","darr","bhoot",
-        "dar","डर","bhoot","भूत",
-        "klua","กลัว","phii","ผี"]):
-        return random.choice(["😱","😨","😰","👻","💀","🙀"])
+    # ১৯. ভয় / Scared
+    if any(w in t for w in ["voy","ভয়","scared","bhoy","darr","bhoot","dar","डर","ghost","ผี","กลัว"]):
+        return random.choice(["😱","😨","😰","👻","💀"])
 
-    # --- 20. বন্ধু / Friend ---
-    if any(w in t for w in ["bondhu","বন্ধু","friend","dost","vai","ভাই",
-        "dost","दोस्त","yaar","यार","bhai","भाई",
-        "phuean","เพื่อน","phii","พี่","nong","น้อง"]):
-        return random.choice(["🤝","👯","❤️","🫶","👊","🤜🤛"])
+    # ২০. বন্ধু / Friend
+    if any(w in t for w in ["bondhu","বন্ধু","friend","dost","vai","ভাই","yaar","यार","bhai","भाई","เพื่อน"]):
+        return random.choice(["🤝","❤️","🫶","👊"])
 
-    return random.choice(["❤️","🔥","😍","👏","🥰","😮","🤩","💯","🫶","✨","🌸"])
+    # ডিফল্ট রিঅ্যাকশন (মেসেজ ম্যাচ না করলে)
+    return random.choice(["❤️","🔥","😍","👏","🥰","💯","✨"])
 
+# ===== বট হ্যান্ডেলার্স =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not user.username or user.username.lower() != OWNER_USERNAME.lower():
-        await update.message.reply_text("আমি শুধু OWNER এর কথা শুনি অন্য কারো না 🙄 আমাকে সেট করতে হলে @official_gt কে নিয়ে এসো")
+        await update.message.reply_text("আমি শুধু OWNER এর কথা শুনি অন্য কারো না 🙄 আমাকে সেট করতে হলে @official_gt কে নিয়ে এসো।")
         return
-    await update.message.reply_text("Yes Boss ✅ Reaction Bot Ready 🔥 BOT OWNER : @official_gt")
+    await update.message.reply_text("হ্যালো বস! আমি সচল আছি এবং গ্রুপে রিঅ্যাকশন দেওয়ার জন্য প্রস্তুত। 🔥")
 
-async def auto_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not msg: return
-    if msg.from_user and msg.from_user.is_bot: return
-    text = msg.text or msg.caption or ""
-    if msg.sticker:
-        emoji = msg.sticker.emoji or "😍"
-    elif msg.photo or msg.video:
-        emoji = get_perfect_reaction(text) if text else "🔥"
-    elif msg.voice or msg.audio or msg.video_note:
-        emoji = "🎵"
-    else:
-        emoji = get_perfect_reaction(text)
+async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # শুধুমাত্র টেক্সট মেসেজ থাকলে প্রসেস করবে
+    if not update.message or not update.message.text:
+        return
+        
+    # বটের নিজের মেসেজ হলে ইগনোর করবে (লুপ বন্ধ করার জন্য)
+    if update.message.from_user.is_bot:
+        return
+
+    text = update.message.text
+    emoji = get_perfect_reaction(text)
+
     try:
-        await msg.set_reaction(reaction=emoji)
-    except:
-        try: await msg.set_reaction(reaction="❤️")
-        except: pass
+        # python-telegram-bot v20+ এর সঠিক রিঅ্যাকশন মেথড
+        await update.message.set_reaction(reaction=ReactionTypeEmoji(emoji=emoji))
+    except Exception as e:
+        print(f"Reaction Error: {e}")
+
+# ===== মেইন এক্সিকিউশন =====
+def main():
+    # অ্যাপ্লিকেশন তৈরি
+    application = ApplicationBuilder().token(TOKEN).build()
+
+    # হ্যান্ডেলার অ্যাড করা
+    application.add_handler(CommandHandler("start", start))
+    
+    # মেসেজ ফিল্টার: শুধুমাত্র টেক্সট মেসেজ রিড করবে, কোনো কমান্ড বা বটের মেসেজ নয়
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.UpdateType.CHANNEL_POST, handle_reaction))
+
+    # বট রানিং
+    print("Bot is polling...")
+    application.run_polling()
 
 if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler('start', start))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, auto_reaction))
-    print("TAMIM REACTION BOT Running 24/7...")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    main()
